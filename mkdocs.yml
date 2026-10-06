@@ -1,0 +1,16 @@
+site_name: Docker Laboratories
+site_description: Laboratory material for master degree courses
+strict: true
+
+theme:
+  name: mkdocs
+  locale: en
+  highlightjs: true
+
+nav:
+  - Lab 1 Docker fundamentals: index.md
+
+markdown_extensions:
+  - fenced_code
+  - toc:
+      permalink: true
