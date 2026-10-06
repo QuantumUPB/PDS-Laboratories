@@ -1,5 +1,5 @@
-site_name: Docker Laboratories
-site_description: Laboratory material for master degree courses
+site_name: PDS Laboratories
+site_description: Laboratory material for the PDS course
 strict: true
 
 theme:
@@ -8,7 +8,8 @@ theme:
   highlightjs: true
 
 nav:
-  - Lab 1 Docker fundamentals: index.md
+  - Home: index.md
+  - Lab 1 Docker fundamentals: lab-01.md
 
 markdown_extensions:
   - fenced_code
