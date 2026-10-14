@@ -1,0 +1,2 @@
+This file travels from the sender container to the receiver container.
+The receiver stores the received bytes in a Docker volume.

@@ -10,6 +10,7 @@ theme:
 nav:
   - Home: index.md
   - Lab 1 Docker fundamentals: lab-01.md
+  - Lab 2 Docker volumes and Compose: lab-02.md
 
 markdown_extensions:
   - fenced_code

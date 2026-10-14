@@ -1,0 +1,41 @@
+name: pds-lab02-tutorial
+
+services:
+  server:
+    build: ./server
+    environment:
+      PORT: "${SERVICE_PORT:-8000}"
+      MESSAGE: "${MESSAGE:-Hello from Compose}"
+    networks:
+      - labnet
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ['PORT'] + '/', timeout=2).close()"
+      interval: 2s
+      timeout: 3s
+      retries: 10
+      start_period: 2s
+
+  client:
+    build: ./client
+    environment:
+      SERVER_HOST: server
+      SERVER_PORT: "${SERVICE_PORT:-8000}"
+      OUTPUT_FILE: /data/messages.txt
+    volumes:
+      - messages:/data
+    networks:
+      - labnet
+    depends_on:
+      server:
+        condition: service_healthy
+
+networks:
+  labnet:
+    driver: bridge
+
+volumes:
+  messages:
