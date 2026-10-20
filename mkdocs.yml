@@ -11,6 +11,7 @@ nav:
   - Home: index.md
   - Lab 1 Docker fundamentals: lab-01.md
   - Lab 2 Docker volumes and Compose: lab-02.md
+  - Lab 3 DHCP and DNS services: lab-03.md
 
 markdown_extensions:
   - fenced_code

@@ -1,0 +1,42 @@
+name: pds-lab03
+
+services:
+  dhcp:
+    build: ./dhcp
+    cap_add:
+      - NET_ADMIN
+    networks:
+      labnet:
+        ipv4_address: 172.30.88.10
+    volumes:
+      - dhcp_leases:/var/lib/misc
+
+  resolver:
+    build: ./resolver
+    networks:
+      labnet:
+        ipv4_address: 172.30.88.11
+
+  client:
+    build: ./client
+    cap_add:
+      - NET_ADMIN
+    stdin_open: true
+    tty: true
+    command: sh
+    networks:
+      - labnet
+    profiles:
+      - manual
+
+networks:
+  labnet:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.88.0/24
+          gateway: 172.30.88.1
+          ip_range: 172.30.88.192/27
+
+volumes:
+  dhcp_leases:
