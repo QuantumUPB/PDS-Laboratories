@@ -2,11 +2,9 @@
 
 ## Purpose
 
-In Lab 2 you connected containers using a Docker network and accessed a service by its Compose service name. In this laboratory you will examine two network services that computers use outside Docker: the Dynamic Host Configuration Protocol (DHCP) and the Domain Name System (DNS).
+In this lab you will configure a DHCP server, request an IPv4 lease from a real DHCP client, run a caching DNS resolver using Unbound, and observe the effect of cached DNS responses. In the final task you will connect these services to a web application: DHCP will tell the client which DNS server to use, and DNS will translate the application's hostname into its IP address.
 
-You will configure a DHCP server, request an IPv4 lease from a real DHCP client, run a caching DNS resolver using Unbound, and observe the effect of cached DNS responses. In the final task you will connect these services to a web application: DHCP will tell the client which DNS server to use, and DNS will translate the application's hostname into its IP address.
-
-At the end of the laboratory you should be able to explain the DHCP exchange, distinguish Docker IPAM from DHCP, identify the DHCP option used to advertise DNS servers, configure a forwarding DNS cache, and verify a locally defined DNS record.
+At the end of the laboratory you should be able to explain the DHCP exchange, distinguish Docker's IPAM from DHCP, identify the DHCP option used to advertise DNS servers, configure a forwarding DNS cache, and verify a locally defined DNS record.
 
 ## Required environment
 
@@ -17,7 +15,7 @@ docker version
 docker compose version
 ```
 
-The laboratory requires Internet access to download container images and Alpine packages. The DNS cache example also needs outbound DNS access to the configured forwarding resolvers. A campus or corporate network may restrict outbound UDP/TCP port 53; ask your instructor about an approved upstream resolver if queries fail.
+The laboratory requires Internet access to download container images and Alpine packages.
 
 **Network safety:** All DHCP traffic in this laboratory must remain on the isolated, user-defined Docker bridge network. Do not use `network_mode: host`, a macvlan network connected to the campus LAN, or publish DHCP port 67 on the host. Running a DHCP server on a shared physical network can disrupt other computers.
 
@@ -154,7 +152,7 @@ The client initially has an address from Docker's IPAM range. That address was *
 
 ### Request an actual DHCP lease
 
-The Alpine image includes the BusyBox DHCP client, `udhcpc`. Its event script is responsible for applying the received IP address, route, and DNS settings. We supply a small script, `client/udhcpc-lab.sh`, because the ordinary Docker interface is initially configured by Docker. Read that script before running it.
+The Alpine image includes the BusyBox DHCP client, `udhcpc`. Its event script is responsible for applying the received IP address, route, and DNS settings. We supply a small script, `client/udhcpc-lab.sh`, because the ordinary Docker interface is initially configured by Docker.
 
 Inside the client shell:
 
@@ -177,29 +175,6 @@ docker compose exec dhcp cat /var/lib/misc/dnsmasq.leases
 ```
 
 Inspect the lease duration, client MAC address, and assigned IP address. Contrast the result with the Docker address recorded by `docker inspect` or `docker network inspect`.
-
-### Capture the DHCP packets
-
-The first request has already completed. Create another disposable client by opening a second shell from the host:
-
-```console
-docker compose run --rm --no-deps client
-```
-
-Inside this new client shell, start a capture in the background **before** requesting a lease.
-
-```sh
-tcpdump -ni eth0 -vv 'udp port 67 or udp port 68' &
-CAPTURE_PID=$!
-udhcpc -i eth0 -n -q -s /usr/local/bin/udhcpc-lab.sh
-kill "$CAPTURE_PID"
-```
-
-The capture should show the four DHCP messages, including the offered IPv4 address and DHCP options. `tcpdump` may display protocol names instead of the four message names; look for the DHCP message-type options. The capture can include additional traffic.
-
-**Questions:** Which message contains the offered address? Which message confirms the lease? Why can the client initially send DHCP traffic without an IPv4 address? Why is the advertised router `.1` rather than the dnsmasq server `.10`? Why does Docker still report a different address from the one shown inside the client?
-
-Exit both experimental client shells before continuing. This prevents the modified client network configuration from affecting later tasks.
 
 ## Exercise 2: configure a caching DNS resolver
 
@@ -242,7 +217,7 @@ The resolver container also sets `username` and `chroot` to empty values for sim
 From the **host terminal**, check the configuration and start Unbound:
 
 ```console
-docker compose run --rm --no-deps --entrypoint unbound-checkconf resolver -c /etc/unbound/unbound.conf
+docker compose run --rm --no-deps --entrypoint unbound-checkconf resolver
 docker compose up -d resolver
 docker compose ps
 docker compose logs resolver
@@ -264,7 +239,7 @@ Flush any existing entry for `example.org` and inspect the initial counters:
 
 ```console
 docker compose exec resolver unbound-control -c /etc/unbound/unbound.conf flush example.org
-docker compose exec resolver unbound-control -c /etc/unbound/unbound.conf stats_noreset
+docker compose exec resolver unbound-control -c /etc/unbound/unbound.conf stats_noreset | grep -E '^total\.num\.(cachehits|cachemiss)='
 ```
 
 Find `total.num.cachehits` and `total.num.cachemiss`, or the corresponding `thread0.*` counters if the total fields are not present. The counters are cumulative during the resolver's current runtime.
@@ -274,7 +249,7 @@ Now execute the same query twice in quick succession, from the host terminal:
 ```console
 docker compose run --rm --no-deps client dig @172.30.88.11 example.org A +noall +answer +stats
 docker compose run --rm --no-deps client dig @172.30.88.11 example.org A +noall +answer +stats
-docker compose exec resolver unbound-control -c /etc/unbound/unbound.conf stats_noreset
+docker compose exec resolver unbound-control -c /etc/unbound/unbound.conf stats_noreset | grep -E '^total\.num\.(cachehits|cachemiss)='
 ```
 
 Compare the before and after counters. The first lookup after flushing should need recursive processing, while a repeated lookup made before the entry expires should normally produce a cache hit. Other DNS activity can also change the counters, so compare the **differences** rather than assuming the counters start at zero.
@@ -296,90 +271,235 @@ An `A` record maps a name to an IPv4 address; an `NS` record identifies authorit
 
 ## Final task: DHCP-configured service discovery
 
-In Lab 2 a client could access a server through its Compose service name. In this task you will create an additional HTTP service and access it by a DNS name announced through your own network configuration rather than through Docker's embedded DNS service.
+In the previous exercises, you obtained an address from a DHCP server and queried an Unbound DNS resolver. Now connect these services. Your client should receive the DNS server address through DHCP and use that server to resolve a local web application name.
 
-Your goal is to make the following chain work:
+At the end of the task, the following process must work:
 
 ```text
-DHCP client -- DHCP option 6 --> dnsmasq
-     |
-     | DNS server address = 172.30.88.11
-     v
-  Unbound -- local A record --> web.lab.test = 172.30.88.12
-     |
-     v
-  Nginx web server at 172.30.88.12:80
+                 DHCPDISCOVER / DHCPREQUEST
+Client ------------------------------------------> dnsmasq (172.30.88.10)
+       <------------------------------------------
+                  Lease + DNS option 6
+                  (DNS server: 172.30.88.11)
+
+Client ---------- DNS: web.lab.test? ------------> Unbound (172.30.88.11)
+       <------------------------------------------
+                     A: 172.30.88.12
+
+Client --------- HTTP: web.lab.test -------------> Nginx (172.30.88.12)
+       <------------------------------------------
+                       Web page
 ```
 
-Use the existing `tutorial` project and edit its configuration; you do not need to create another application from scratch. This final task combines networking, Compose, HTTP, DHCP, and DNS.
+Work in the existing `labs/lab-03/tutorial` directory. You will edit **three files**: `compose.yaml`, `resolver/unbound.conf`, and `dhcp/dnsmasq.conf`. The supplied client image and DHCP event script do not need changes.
 
-### Step 1: add a web service
+All `docker compose` commands below run in a **host terminal** in `labs/lab-03/tutorial`. Commands shown after opening the interactive client shell run **inside that client container**. Keep the host terminal available to start and stop services.
 
-Extend `compose.yaml` with a service named `web` that runs the `nginx:alpine` image and joins `labnet` using the **static IPv4 address** `172.30.88.12`. The server must be reachable by other containers on this network. You do not need to publish an HTTP port on the Docker host.
+### Part 1: add and test an HTTP service
 
-Start the web server and confirm that it runs. From a fresh client, first access `http://172.30.88.12` by IP address using `wget` (available in Alpine). This proves that the HTTP service works before DNS is involved.
+Add a service named `web` under the existing `services:` section of `compose.yaml`. Use the `nginx:alpine` image and give the service a fixed IP address of `172.30.88.12` on `labnet`.
 
-### Step 2: define a local DNS name
+The service definition has the following form:
 
-Edit `resolver/unbound.conf` to define the local zone `lab.test.` and an `A` record named `web.lab.test.` pointing to `172.30.88.12`, with a TTL of 60 seconds. The `.test` top-level domain is reserved for testing; it is not intended for public DNS delegation.
+```yaml
+services:
+  # Existing dhcp, resolver, and client services remain here.
+  web:
+    image: nginx:alpine
+    networks:
+      labnet:
+        ipv4_address: 172.30.88.12
+```
 
-Read about the Unbound `local-zone` and `local-data` options, then add suitable settings under `server:`. Use a `static` local zone so that names not defined in this zone do not get forwarded to public resolvers.
+**Do not add a second `services:` section.** Insert only the `web:` block into the existing one, using the same indentation level as `dhcp:` and `resolver:`. Do not remove the existing services or network definition. You do not need a `ports:` entry: the web server is accessed by another container on the same Docker network, not through a host port.
 
-Check the configuration, recreate Unbound using Compose, and verify the answer from a client using `dig @172.30.88.11 web.lab.test A`. Show the answer's address and TTL. Confirm that another name in the local zone without a record does not resolve to your web server.
+Validate the file and start Nginx from the host terminal:
 
-### Step 3: advertise the DNS resolver using DHCP
+```console
+docker compose config
+docker compose up -d web
+docker compose ps
+```
 
-Edit `dhcp/dnsmasq.conf` to advertise `172.30.88.11` as the DNS server using **DHCP option 6**. Keep the existing lease pool and router option unchanged.
+Now test HTTP without involving DNS. From the host terminal, open a disposable client shell:
 
-Rebuild and recreate the DHCP service:
+```console
+docker compose run --rm --no-deps client
+```
+
+Inside that client, run:
+
+```sh
+wget -qO- http://172.30.88.12/
+```
+
+**Checkpoint:** You should see the default Nginx HTML page. If this request fails, do not continue to DNS configuration. Verify the `web` service's status, static IP address, and membership in `labnet`.
+
+Exit the client shell with `exit`. You will start a new client later when testing DHCP.
+
+### Part 2: create the DNS record in Unbound
+
+Open `resolver/unbound.conf`. Unbound already forwards public DNS queries upstream. Keep that configuration and add a **local zone** for the laboratory application.
+
+You need two directives in the existing `server:` section:
+
+- `local-zone` declares which DNS names Unbound handles locally. The type `static` means that an unknown name in this zone will not be forwarded to the public DNS servers.
+- `local-data` adds a DNS record. An `A` record associates a hostname with an IPv4 address. Its syntax is `"<hostname>. <TTL> IN A <IPv4-address>"`.
+
+For example, an unrelated local record could be defined as follows:
+
+```yaml
+server:
+    # Other existing server options remain unchanged.
+    local-zone: "example.test." static
+    local-data: "host.example.test. 120 IN A 172.30.88.20"
+```
+
+**Your task:** Adapt these directives to define the zone `lab.test.` and the record `web.lab.test.` with address `172.30.88.12` and TTL **60 seconds**. Add them under the existing `server:` heading. Do not put them under `forward-zone:` and do not add another `server:` heading. Keep the final dot in the complete DNS names.
+
+Check the file and rebuild the resolver image because the Dockerfile copies `unbound.conf` into that image:
+
+```console
+docker compose run --rm --no-deps --entrypoint unbound-checkconf resolver
+docker compose up -d --build resolver
+```
+
+Verify the record from the host terminal with a disposable client:
+
+```console
+docker compose run --rm --no-deps client dig @172.30.88.11 web.lab.test A +noall +answer +comments
+docker compose run --rm --no-deps client dig @172.30.88.11 missing.lab.test A +noall +answer +comments
+```
+
+The first response should include an `A` record for `172.30.88.12`. The second request should not return an address for `missing.lab.test`; with the `static` zone it should normally return `NXDOMAIN`. Inspect the response status rather than treating an empty answer as proof of failure.
+
+**Checkpoint:** Unbound resolves the local name correctly when the client explicitly specifies the resolver address. DHCP is not involved in these two tests.
+
+### Part 3: send the DNS server address through DHCP
+
+Open `dhcp/dnsmasq.conf`. In Exercise 1, dnsmasq advertised an address from its lease pool and a default gateway. DHCP can also send a list of DNS resolvers in **option 6**.
+
+In dnsmasq, the directive has this form:
+
+```ini
+dhcp-option=option:dns-server,<DNS_SERVER_IP>
+```
+
+Replace `<DNS_SERVER_IP>` with the fixed IP address of your Unbound container. Keep the existing `dhcp-range` and `option:router` settings unchanged. The `dns-server` option is different from the router option: it tells clients where to send DNS queries, not where to forward general IP traffic.
+
+Rebuild and recreate dnsmasq to apply the edited file:
 
 ```console
 docker compose up -d --build dhcp
+docker compose logs dhcp
 ```
 
-Start a **new client container** with a shell. Inspect its initial IPv4 address and `/etc/resolv.conf` before requesting a DHCP lease. Then run:
+Start a **new** client shell from the host:
+
+```console
+docker compose run --rm --no-deps client
+```
+
+Before starting DHCP, inspect Docker's original client configuration:
+
+```sh
+ip -4 address show dev eth0
+cat /etc/resolv.conf
+```
+
+Now request a lease using the supplied event script:
 
 ```sh
 udhcpc -i eth0 -n -q -s /usr/local/bin/udhcpc-lab.sh
+ip -4 address show dev eth0
 cat /tmp/dhcp-dns-servers
 cat /etc/resolv.conf
-ip -4 address show dev eth0
 ```
 
-The supplied `udhcpc-lab.sh` reads the DNS addresses received through DHCP and installs them in the client's `/etc/resolv.conf` file. It does not consult Docker Compose service names. **Confirm that the DNS server came from the DHCP exchange**, not from Docker's original resolver settings. If necessary, repeat the DHCP packet capture from Exercise 1 and examine the DHCP option list in the OFFER or ACK.
+The script removes the temporary address assigned by Docker, applies the leased address, and writes the DNS servers received from DHCP to `/etc/resolv.conf`.
 
-### Step 4: access the web service by name
+**Checkpoint:** Verify both of the following before continuing:
 
-With the same DHCP-configured client, test both DNS and HTTP:
+1. `eth0` has an IPv4 address in `172.30.88.100–150`.
+2. `/tmp/dhcp-dns-servers` and `/etc/resolv.conf` identify `172.30.88.11` as the DNS server, rather than Docker's initial `127.0.0.11` resolver.
+
+If these conditions do not hold, inspect `docker compose logs dhcp` in the host terminal. You can also repeat the packet capture from Exercise 1 and find the DNS server option in the DHCP OFFER or ACK. Do not use `docker inspect` to verify the DHCP lease: Docker still tracks the temporary IP address it allocated when creating the container.
+
+**Keep this client shell open for the remaining steps.** It now represents a client configured by your DHCP server.
+
+### Part 4: resolve the hostname and access the web server
+
+Inside the **same DHCP-configured client**, run the following commands:
 
 ```sh
+dig web.lab.test A +noall +answer +stats
 nslookup web.lab.test
 wget -qO- http://web.lab.test/
 ```
 
-A successful result resolves `web.lab.test` to `172.30.88.12` and returns the default Nginx page. The commands do not specify the DNS server explicitly. Name resolution should use the server announced by DHCP and written into `/etc/resolv.conf`.
+Notice that the first two commands do **not** include `@172.30.88.11` or another explicit resolver argument. They use the DNS configuration installed by the DHCP event script. The HTTP command also uses the hostname instead of the server's IP address.
 
-Test the effect of stopping the resolver, while keeping the web server running. Try the hostname again from a fresh client. Does connecting to the web server's IP address still work? Explain the difference between a DNS failure and a web-server failure. Restart the resolver afterward.
+**Checkpoint:** The DNS response identifies `172.30.88.12` and the HTTP request displays the Nginx page.
+
+Explain why each of these values has a different role: the client's leased address, the DNS server's address (`172.30.88.11`), and the address returned for `web.lab.test` (`172.30.88.12`).
+
+### Part 5: investigate a DNS failure
+
+Keep the DHCP-configured client shell open. From the **host terminal**, stop only the resolver:
+
+```console
+docker compose stop resolver
+```
+
+Now return to the **existing client shell** and repeat a DNS query, followed by a direct HTTP request:
+
+```sh
+dig +time=2 +tries=1 web.lab.test A
+wget -qO- http://172.30.88.12/
+```
+
+The DNS query should time out or fail while Unbound is stopped. The HTTP request by IP address should still succeed because Nginx is running independently of the resolver. These commands also avoid relying on a previously resolved hostname or another DNS server.
+
+Restore Unbound from the host terminal:
+
+```console
+docker compose start resolver
+```
+
+In the client shell, check that name resolution and access by hostname work again:
+
+```sh
+dig web.lab.test A +noall +answer
+wget -qO- http://web.lab.test/
+```
+
+**Checkpoint:** You can explain which part of the network stopped working, why direct HTTP by IP continued to work, and why restarting Unbound restored hostname-based access.
 
 ### Required verification
 
-Demonstrate the following checks to the laboratory instructor:
+Demonstrate these checks to the laboratory instructor:
 
-| Check | Required evidence |
+| Check | Required result |
 | --- | --- |
-| DHCP lease | Address in `172.30.88.100–150` shown inside client |
-| DHCP exchange | Discover, Offer, Request, ACK visible in capture or server log |
-| DHCP DNS configuration | Option 6 advertises `172.30.88.11` |
-| DNS caching | Unbound counters show cache misses and subsequent hits |
-| Local DNS record | `web.lab.test` resolves to `172.30.88.12` |
-| HTTP by hostname | `wget http://web.lab.test/` returns the Nginx page |
-| Failure diagnosis | Explain results with DNS unavailable but web server still running |
+| Web service | `wget` reaches `172.30.88.12` before DNS is configured |
+| Local DNS | An explicit query to `172.30.88.11` returns the `web.lab.test` A record with TTL 60 |
+| DHCP configuration | Client receives a lease in `172.30.88.100–150` and DNS server `172.30.88.11` in option 6 |
+| DNS through DHCP | `dig web.lab.test A` succeeds **without** an explicit `@server` argument |
+| Service discovery | `wget -qO- http://web.lab.test/` returns the Nginx page |
+| Failure test | DNS fails while Unbound is stopped, but HTTP by IP still works |
 
-Explain the difference between the automatically assigned Docker IP address, the DHCP lease, the Unbound DNS address, and the address returned by the `web.lab.test` DNS record. These four values have different roles.
+The cache-hit and cache-miss observations from **Exercise 2** remain part of the laboratory. Do not try to demonstrate a recursive-cache hit using only `web.lab.test`: Unbound serves that name from its local configuration.
+
+### Questions
+
+1. Which DHCP option identifies the DNS server? Does it contain the address of Nginx or of Unbound?
+2. Why could the client reach Nginx by IP address before you configured the local DNS record?
+3. Why do the commands without `@172.30.88.11` demonstrate more than a manually directed DNS query?
+4. If the Nginx container changed its address, which configuration would you need to update? Would the DHCP option also need to change?
 
 ### Optional extension
 
-Create a second local DNS name for the same Nginx container, but give it a different TTL. Verify both names and compare their answer TTLs. Explain whether the records must be cached, whether the web server is aware of these DNS names, and what might change if the web server requires virtual-host configuration.
+Add another hostname, `portal.lab.test`, pointing to the same Nginx IP address, with a TTL of 120 seconds. Query both records and compare the returned TTLs. Explain why changing the DNS name does not require changing the Nginx container's address.
 
 ## Troubleshooting
 
