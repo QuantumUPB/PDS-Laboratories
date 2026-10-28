@@ -1,0 +1,2 @@
+Storage inspection report
+Week 1: 3 disks passed inspection.

@@ -12,7 +12,7 @@ nav:
   - Lab 1 Docker fundamentals: lab-01.md
   - Lab 2 Docker volumes and Compose: lab-02.md
   - Lab 3 DHCP and DNS services: lab-03.md
-  - Lab 4 Network storage and snapshots: lab-04.md
+  - Lab 4 Object storage and recovery: lab-04.md
 
 markdown_extensions:
   - fenced_code
