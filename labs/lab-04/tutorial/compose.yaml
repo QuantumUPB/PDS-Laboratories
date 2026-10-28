@@ -11,8 +11,8 @@ services:
       - silo_data:/data
       - ./files:/lab-files:ro
     ports:
-      - "127.0.0.1:9000:9000"
-      - "127.0.0.1:9001:9001"
+      - "0.0.0.0:9000:9000"
+      - "0.0.0.0:9001:9001"
 
 volumes:
   silo_data:
