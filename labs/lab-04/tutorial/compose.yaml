@@ -1,0 +1,74 @@
+name: pds-lab04
+
+services:
+  opensearch:
+    build: ./opensearch
+    environment:
+      - discovery.type=single-node
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+      - DISABLE_SECURITY_PLUGIN=true
+      - AWS_EC2_METADATA_DISABLED=true
+      - s3.client.default.endpoint=silo:9000
+      - s3.client.default.protocol=http
+      - s3.client.default.path_style_access=true
+      - s3.client.default.region=us-east-1
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    ports:
+      - "127.0.0.1:9200:9200"
+
+  grafana:
+    image: grafana/grafana:12.4.11
+    environment:
+      GF_PLUGINS_PREINSTALL: grafana-opensearch-datasource@2.34.6
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/datasources.yaml:/etc/grafana/provisioning/datasources/opensearch.yaml:ro
+    depends_on:
+      - opensearch
+    ports:
+      - "127.0.0.1:3000:3000"
+
+  silo:
+    image: pgsty/silo:RELEASE.2026-10-18T00-00-00Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: labadmin
+      MINIO_ROOT_PASSWORD: labsecret123
+    volumes:
+      - silo_data:/data
+    ports:
+      - "127.0.0.1:9001:9001"
+
+  app:
+    image: python:3.13-slim
+    working_dir: /app
+    volumes:
+      - ./app:/app:ro
+    environment:
+      OPENSEARCH_URL: http://opensearch:9200
+    command: python app.py
+    depends_on:
+      - opensearch
+    ports:
+      - "127.0.0.1:8080:8080"
+
+  client:
+    image: python:3.13-slim
+    profiles: [tools]
+    working_dir: /lab
+    volumes:
+      - ./client:/lab:ro
+    command: python lab_api.py search
+    depends_on:
+      - opensearch
+
+volumes:
+  opensearch_data:
+  grafana_data:
+  silo_data:
