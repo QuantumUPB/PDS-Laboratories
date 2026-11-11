@@ -1,0 +1,86 @@
+name: pds-lab06
+
+x-nebula-node: &nebula-node
+  image: pds-lab06-nebula:local
+  build: .
+  cap_add:
+    - NET_ADMIN
+  devices:
+    - /dev/net/tun:/dev/net/tun
+  restart: unless-stopped
+
+services:
+  lighthouse:
+    <<: *nebula-node
+    volumes:
+      - ./state/configs/lighthouse.yml:/etc/nebula/config.yml:ro
+      - ./state/peers/lighthouse:/etc/nebula/creds:ro
+    networks:
+      underlay:
+        ipv4_address: 172.28.66.10
+
+  employee:
+    <<: *nebula-node
+    volumes:
+      - ./state/configs/employee.yml:/etc/nebula/config.yml:ro
+      - ./state/peers/employee:/etc/nebula/creds:ro
+    networks:
+      underlay:
+        ipv4_address: 172.28.66.11
+    depends_on:
+      - lighthouse
+
+  contractor:
+    <<: *nebula-node
+    volumes:
+      - ./state/configs/contractor.yml:/etc/nebula/config.yml:ro
+      - ./state/peers/contractor:/etc/nebula/creds:ro
+    networks:
+      underlay:
+        ipv4_address: 172.28.66.12
+    depends_on:
+      - lighthouse
+
+  fileserver:
+    <<: *nebula-node
+    command: ["fileserver"]
+    volumes:
+      - ./state/configs/fileserver.yml:/etc/nebula/config.yml:ro
+      - ./state/peers/fileserver:/etc/nebula/creds:ro
+      - ./files:/srv/files:ro
+    networks:
+      underlay:
+        ipv4_address: 172.28.66.13
+    depends_on:
+      - lighthouse
+
+  # Start only for the final credential-compromise exercise.
+  # Stop contractor first: attacker uses its stolen IP and credentials.
+  attacker:
+    <<: *nebula-node
+    profiles: ["incident"]
+    volumes:
+      - ./state/configs/attacker.yml:/etc/nebula/config.yml:ro
+      - ./state/incident/stolen:/etc/nebula/creds:ro
+    networks:
+      underlay:
+        ipv4_address: 172.28.66.14
+    depends_on:
+      - lighthouse
+
+  # No TUN access and no CA key mounted in any running Nebula peer.
+  certtool:
+    image: pds-lab06-nebula:local
+    build: .
+    entrypoint: ["nebula-cert"]
+    profiles: ["tools"]
+    volumes:
+      - ./state:/state
+    network_mode: none
+
+networks:
+  underlay:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.66.0/24

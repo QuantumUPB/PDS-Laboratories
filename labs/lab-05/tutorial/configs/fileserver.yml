@@ -1,0 +1,32 @@
+pki:
+  ca: /etc/nebula/creds/ca.crt
+  cert: /etc/nebula/creds/host.crt
+  key: /etc/nebula/creds/host.key
+  blocklist: []
+  disconnect_invalid: true
+
+static_host_map:
+  "192.168.100.1": ["172.28.66.10:4242"]
+
+lighthouse:
+  am_lighthouse: false
+  hosts: ["192.168.100.1"]
+
+listen:
+  host: 0.0.0.0
+  port: 4242
+
+tun:
+  dev: nebula1
+
+firewall:
+  outbound:
+    - port: any
+      proto: any
+      host: any
+  inbound:
+    - port: any
+      proto: icmp
+      host: any
+    # Task 2: add a rule for TCP port 8080, limited to the employee group.
+    # Keep the ICMP rule above.

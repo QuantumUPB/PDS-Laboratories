@@ -1,0 +1,5 @@
+PDS LAB 06 - CONFIDENTIAL ENGINEERING REPORT
+
+This file stands in for an internal resource.
+Only the employee certificate group should be authorized to read it.
+The protection is enforced by Nebula's peer firewall, not by an HTTP password.
