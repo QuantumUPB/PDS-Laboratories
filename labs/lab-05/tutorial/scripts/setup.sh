@@ -17,7 +17,7 @@ docker compose build certtool
 
 echo "Generating a NEW local CA (its private key is never mounted in a VPN peer)..."
 docker compose run --rm -T certtool ca \
-    -name 'PDS Lab 06 CA' \
+    -name 'PDS Lab 05 CA' \
     -out-crt /state/authority/ca.crt \
     -out-key /state/authority/ca.key
 

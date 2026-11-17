@@ -8,6 +8,8 @@ This site contains the laboratory material for the PDS course.
 | 2 (12-16 Oct) | [Docker volumes and Compose](lab-02.md) |
 | 2 (19-23 Oct) | [DHCP and DNS](lab-03.md) |
 | 3 (26-30 Oct) | [Object storage and recovery](lab-04.md) |
-| 5 (9-13 Nov| [Nebula VPN and certificate security](lab-05.md) |
+| 5 (9-13 Nov) | [Nebula VPN and certificate security](lab-05.md) |
+| 6 | [Batch dataflow with Apache Beam](lab-06.md) |
+| 7 | [Event time with Apache Beam](lab-07.md) |
 
 Select a laboratory from the navigation menu to begin.

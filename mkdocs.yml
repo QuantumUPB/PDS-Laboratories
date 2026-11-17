@@ -14,6 +14,8 @@ nav:
   - Lab 3 DHCP and DNS services: lab-03.md
   - Lab 4 Object storage and recovery: lab-04.md
   - Lab 5 Nebula VPN and certificate security: lab-05.md
+  - Lab 6 Batch dataflow with Apache Beam: lab-06.md
+  - Lab 7 Event time with Apache Beam: lab-07.md
 
 markdown_extensions:
   - fenced_code

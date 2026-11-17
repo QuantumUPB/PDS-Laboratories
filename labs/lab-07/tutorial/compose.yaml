@@ -1,0 +1,5 @@
+name: pds-lab07
+
+services:
+  beam:
+    build: .

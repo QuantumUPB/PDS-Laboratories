@@ -1,0 +1,8 @@
+name: pds-lab06
+
+services:
+  beam:
+    build: .
+    volumes:
+      - ./input:/lab/input:ro
+      - ./output:/lab/output

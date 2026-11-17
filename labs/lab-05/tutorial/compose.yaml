@@ -1,7 +1,7 @@
-name: pds-lab06
+name: pds-lab05
 
 x-nebula-node: &nebula-node
-  image: pds-lab06-nebula:local
+  image: pds-lab05-nebula:local
   build: .
   cap_add:
     - NET_ADMIN
@@ -70,7 +70,7 @@ services:
 
   # No TUN access and no CA key mounted in any running Nebula peer.
   certtool:
-    image: pds-lab06-nebula:local
+    image: pds-lab05-nebula:local
     build: .
     entrypoint: ["nebula-cert"]
     profiles: ["tools"]

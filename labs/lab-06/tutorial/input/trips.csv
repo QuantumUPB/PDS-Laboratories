@@ -1,0 +1,11 @@
+trip_id,start_station,end_station,duration_minutes
+t01,S1,S2,8
+t02,S1,S3,15
+t03,S2,S1,12
+t04,S2,S3,25
+t05,S2,S1,9
+t06,S3,S1,18
+t07,S1,S2,11
+t08,S3,S2,7
+t09,S2,S1,-2
+t10,S1,S2,abc

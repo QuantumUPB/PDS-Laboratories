@@ -1,4 +1,4 @@
-# Lab 6 VPN
+# Lab 5 Nebula VPN and certificate security
 
 ## Objective
 
@@ -11,7 +11,7 @@ You need Docker with Compose and a shell that can run the supplied scripts. Use 
 From the repository root:
 
 ```console
-cd labs/lab-06/tutorial
+cd labs/lab-05/tutorial
 docker compose version
 ```
 
@@ -232,7 +232,7 @@ sh scripts/reset.sh
 sh scripts/setup.sh
 ```
 
-`reset.sh` deletes only `labs/lab-06/tutorial/state/`. Do not use the lab CA or its private key on real systems.
+`reset.sh` deletes only `labs/lab-05/tutorial/state/`. Do not use the lab CA or its private key on real systems.
 
 ## References
 
