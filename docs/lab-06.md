@@ -1,7 +1,5 @@
 # Lab 6 Batch dataflow with Apache Beam
 
-Allow about 30 minutes. You will run a finished pipeline, follow its data through the graph, then add one small branch. This lab uses only its own files.
-
 ## Run the pipeline
 
 You need Docker with Compose and Internet access for the first build. From the repository root:
@@ -56,8 +54,6 @@ docker compose build
 docker compose run --rm beam
 docker compose run --rm --entrypoint python beam check.py --extension
 ```
-
-Explain why filtering before the count changes only this new branch, while `station-summary` stays the same.
 
 ## Cleanup and references
 
